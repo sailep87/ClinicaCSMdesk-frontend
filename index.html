@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ClinicaCSMdesk</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
+  <style>
+    html { scroll-behavior: smooth; }
+    [data-scroll] { opacity: 0; transform: translateY(20px); transition: opacity 0.6s ease-out, transform 0.6s ease-out; }
+    [data-scroll].active { opacity: 1; transform: translateY(0); }
+    figure img { max-width: 100%; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+    #app, #logout { display: none; }
+  </style>
+</head>
+<body>
+<main class="container" id="login">
+  <section>
+    <h2>Ingreso a ClinicaCSMdesk</h2>
+    <form id="loginForm">
+      <input type="text" id="user" placeholder="Usuario" required>
+      <input type="password" id="pass" placeholder="Contraseña" required>
+      <button type="submit">Ingresar</button>
+    </form>
+  </section>
+</main>
+<div id="app">
+  <nav class="container-fluid">
+    <ul><li><strong>ClinicaCSMdesk</strong></li></ul>
+    <ul>
+      <li><a href="#tickets">Tickets</a></li>
+      <li><a href="#estadisticas">Estadísticas</a></li>
+      <li><a href="#nuevo" role="button">Nuevo Ticket</a></li>
+      <li><a href="#" id="logout">Cerrar sesión</a></li>
+    </ul>
+  </nav>
+  <main class="container">
+    <section id="nuevo" aria-label="Formulario nuevo ticket" data-scroll>
+      <article>
+        <hgroup>
+          <h2>Registrar un nuevo ticket</h2>
+          <h3>Ingrese los detalles del problema técnico</h3>
+        </hgroup>
+        <form id="ticketForm" class="grid">
+          <input type="text" id="usuario" placeholder="Nombre del usuario" required>
+          <input type="text" id="problema" placeholder="Describa el problema" required>
+          <select id="prioridad" required>
+            <option value="">Seleccione prioridad</option>
+            <option value="Alta">Alta</option>
+            <option value="Media">Media</option>
+            <option value="Baja">Baja</option>
+          </select>
+          <button type="submit">Crear ticket</button>
+        </form>
+      </article>
+    </section>
+    <section id="tickets" data-scroll>
+      <h3>Tickets Activos</h3>
+      <table id="ticketsTable">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Usuario</th>
+            <th>Problema</th>
+            <th>Prioridad</th>
+            <th>Estado</th>
+            <th>Fecha</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </section>
+    <section id="estadisticas" data-scroll>
+      <h3>Estadísticas</h3>
+      <ul id="statsList"></ul>
+    </section>
+  </main>
+  <footer class="container">
+    <small><a href="#">ClinicaCSMdesk</a> • <a href="#">Términos</a></small>
+  </footer>
+</div>
+<script>
+const API_URL = 'https://clinicacsmdesk-backend.onrender.com';
+const usuarios = [
+  { usuario: "admin", password: "1234", rol: "administrador" },
+  { usuario: "soporte1", password: "1234", rol: "operario" }
+];
+const loginForm = document.getElementById("loginForm");
+const app = document.getElementById("app");
+const logoutBtn = document.getElementById("logout");
+function mostrarApp() {
+  document.getElementById("login").style.display = "none";
+  app.style.display = "block";
+  logoutBtn.style.display = "inline-block";
+}
+function cerrarSesion() {
+  localStorage.removeItem("user");
+  location.reload();
+}
+function verificarSesion() {
+  const user = localStorage.getItem("user");
+  if (user) mostrarApp();
+}
+loginForm.addEventListener("submit", e => {
+  e.preventDefault();
+  const user = document.getElementById("user").value;
+  const pass = document.getElementById("pass").value;
+  const match = usuarios.find(u => u.usuario === user && u.password === pass);
+  if (match) {
+    localStorage.setItem("user", JSON.stringify(match));
+    mostrarApp();
+    cargarTickets();
+    cargarEstadisticas();
+  } else {
+    alert("Credenciales incorrectas");
+  }
+});
+logoutBtn.addEventListener("click", cerrarSesion);
+const form = document.getElementById("ticketForm");
+form.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const usuario = document.getElementById("usuario").value;
+  const problema = document.getElementById("problema").value;
+  const prioridad = document.getElementById("prioridad").value;
+  await fetch(`${API_URL}/api/tickets`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ usuario, problema, prioridad }),
+  });
+  form.reset();
+  cargarTickets();
+  cargarEstadisticas();
+});
+function cargarTickets() {
+  fetch(`${API_URL}/api/tickets`)
+    .then(res => res.json())
+    .then(data => {
+      const tableBody = document.querySelector('#ticketsTable tbody');
+      tableBody.innerHTML = '';
+      data.forEach(ticket => {
+        const row = `<tr>
+          <td>${ticket.id}</td>
+          <td>${ticket.usuario}</td>
+          <td>${ticket.problema}</td>
+          <td>${ticket.prioridad}</td>
+          <td>${ticket.estado}</td>
+          <td>${ticket.fecha}</td>
+        </tr>`;
+        tableBody.innerHTML += row;
+      });
+    });
+}
+function cargarEstadisticas() {
+  fetch(`${API_URL}/api/stats`)
+    .then(res => res.json())
+    .then(data => {
+      const statsList = document.getElementById('statsList');
+      statsList.innerHTML = '';
+      data.stats.forEach(item => {
+        const li = `<li>Prioridad ${item.prioridad}: <strong>${item.cantidad}</strong> tickets</li>`;
+        statsList.innerHTML += li;
+      });
+    });
+}
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.classList.add('active');
+    }
+  });
+});
+document.querySelectorAll('[data-scroll]').forEach(e => observer.observe(e));
+verificarSesion();
+</script>
+</body>
+</html>
